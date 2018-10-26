@@ -1,11 +1,11 @@
 path = dirname(@__FILE__)
 
 # Initialize arguments to function
-file = h5open("$path/reference/kalman_filter_args.h5", "r")
-y = read(file, "data")
-T, R, C    = read(file, "TTT"), read(file, "RRR"), read(file, "CCC")
-Q, Z, D, E = read(file, "QQ"), read(file, "ZZ"), read(file, "DD"), read(file, "EE")
-s_0, P_0   = read(file, "z0"), read(file, "P0")
+file = jldopen("$path/reference/kalman_filter_args.jld2", "r")
+data = read(file, "data")
+TTT, RRR, CCC    = read(file, "TTT"), read(file, "RRR"), read(file, "CCC")
+QQ, ZZ, DD, EE = read(file, "QQ"), read(file, "ZZ"), read(file, "DD"), read(file, "EE")
+z0, P0   = read(file, "z0"), read(file, "P0")
 close(file)
 
 # Kalman Filter (all arguments and no presample)
@@ -18,11 +18,13 @@ out = kalman_filter(y, T, R, C, Q, Z, D, E, s_0, P_0)
         @test read(h5, "vpred")          ≈ out[3]
         @test read(h5, "filt")           ≈ out[4]
         @test read(h5, "vfilt")          ≈ out[5]
-        @test s_0                        ≈ out[6]
-        @test P_0                        ≈ out[7]
+        @test z0                         ≈ out[6]
+        @test P0                         ≈ out[7]
     end
 end
 
+# Method with initial conditions omitted
+out = kalman_filter(data, TTT, RRR, CCC, QQ, ZZ, DD, EE)
 
 # Kalman Filter (no initial conditions and no presample)
 out = kalman_filter(y, T, R, C, Q, Z, D, E)
@@ -34,8 +36,8 @@ out = kalman_filter(y, T, R, C, Q, Z, D, E)
         @test read(h5, "vpred")          ≈ out[3]
         @test read(h5, "filt")           ≈ out[4]
         @test read(h5, "vfilt")          ≈ out[5]
-        @test s_0                        ≈ out[6]
-        @test P_0                        ≈ out[7]
+        @test z0                         ≈ out[6]
+        @test P0                         ≈ out[7]
     end
 end
 

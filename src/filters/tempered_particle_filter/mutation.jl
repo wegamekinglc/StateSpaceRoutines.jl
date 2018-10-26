@@ -16,8 +16,7 @@ function mutation!(Φ::Function, Ψ::Function, QQ::Matrix{Float64},
     n_particles = size(ϵ_t, 2)
 
     # Initialize vector of acceptances
-    MyVector = parallel ? SharedVector : Vector
-    accept_vec = MyVector{Int}(n_particles)
+    accept_vec = parallel ? SharedVector{Int}(n_particles) : Vector{Int}(undef, n_particles)
 
     # Used to generate new draws of ϵ
     dist_ϵ = MvNormal(c^2 * diag(QQ))
@@ -27,7 +26,8 @@ function mutation!(Φ::Function, Ψ::Function, QQ::Matrix{Float64},
     scaled_inv_HH = inv_HH*φ_new
 
     # Take Metropolis-Hastings steps
-    @mypar parallel for i in 1:n_particles
+    #@mypar parallel for i in 1:n_particles
+    @sync @distributed for i in 1:n_particles
         s_t[:,i], ϵ_t[:,i], accept_vec[i] =
             mh_steps(Φ, Ψ, dist_ϵ, y_t, s_t1[:,i], s_t[:,i], ϵ_t[:,i],
                     scaled_det_HH, scaled_inv_HH, n_mh_steps)

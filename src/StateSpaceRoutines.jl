@@ -3,9 +3,12 @@ isdefined(Base, :__precompile__) && __precompile__()
 module StateSpaceRoutines
 
     using QuantEcon: solve_discrete_lyapunov
-    using Distributions: Distribution, MvNormal, pdf, Weights, sample, logpdf
+    using Distributions: Distribution, MvNormal, pdf, Weights, sample
+    using LinearAlgebra, Statistics
     using Roots: fzero
-    using HDF5, JLD
+    using HDF5, JLD2
+    using Distributed
+    using SharedArrays
 
     export
 

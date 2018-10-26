@@ -64,8 +64,8 @@ where `S<:AbstractFloat` and
 - `loglh::Vector{S}`: vector of conditional log-likelihoods p(y_t|y_{1:t-1},Φ,Ψ,F_ϵ,F_u)
 - `times::Vector{S}`: vector of runtimes per period t
 """
-function tempered_particle_filter(data::Matrix{S}, Φ::Function, Ψ::Function,
-                                  F_ϵ::Distribution, F_u::Distribution, s_init::Matrix{S};
+function tempered_particle_filter(data::AbstractArray, Φ::Function, Ψ::Function,
+                                  F_ϵ::Distribution, F_u::Distribution, s_init::AbstractArray{S};
                                   n_particles::Int = 1000, fixed_sched::Vector{S} = zeros(0),
                                   r_star::S = 2.0, findroot::Function = bisection, xtol::S = 1e-3,
                                   resampling_method = :multinomial, n_mh_steps::Int = 1,
@@ -94,19 +94,16 @@ function tempered_particle_filter(data::Matrix{S}, Φ::Function, Ψ::Function,
     times = zeros(T)
 
     # Initialize working variables
-    MyVector = parallel ? SharedVector : Vector
-    MyMatrix = parallel ? SharedMatrix : Matrix
+    s_t1_temp     = parallel ? SharedMatrix{Float64}(copy(s_init)) : Matrix{Float64}(copy(s_init))
+    s_t_nontemp   = parallel ? SharedMatrix{Float64}(n_states, n_particles) : Matrix{Float64}(undef, n_states, n_particles)
+    ϵ_t           = parallel ? SharedMatrix{Float64}(n_shocks, n_particles) : Matrix{Float64}(undef, n_shocks, n_particles)
 
-    s_t1_temp     = MyMatrix{Float64}(copy(s_init))
-    s_t_nontemp   = MyMatrix{Float64}(n_states, n_particles)
-    ϵ_t           = MyMatrix{Float64}(n_shocks, n_particles)
+    coeff_terms   = parallel ? SharedVector{Float64}(n_particles) : Vector{Float64}(undef, n_particles)
+    log_e_1_terms = parallel ? SharedVector{Float64}(n_particles) : Vector{Float64}(undef, n_particles)
+    log_e_2_terms = parallel ? SharedVector{Float64}(n_particles) : Vector{Float64}(undef, n_particles)
 
-    coeff_terms   = MyVector{Float64}(n_particles)
-    log_e_1_terms = MyVector{Float64}(n_particles)
-    log_e_2_terms = MyVector{Float64}(n_particles)
-
-    inc_weights   = Vector{Float64}(n_particles)
-    norm_weights  = Vector{Float64}(n_particles)
+    inc_weights   = Vector{Float64}(undef, n_particles)
+    norm_weights  = Vector{Float64}(undef, n_particles)
 
     c = c_init
     accept_rate = target_accept_rate
@@ -116,7 +113,7 @@ function tempered_particle_filter(data::Matrix{S}, Φ::Function, Ψ::Function,
     #--------------------------------------------------------------
 
     for t = 1:T
-        tic()
+        begin_time = time_ns()
         if VERBOSITY[verbose] >= VERBOSITY[:low]
             println("============================================================")
             @show t
@@ -138,7 +135,8 @@ function tempered_particle_filter(data::Matrix{S}, Φ::Function, Ψ::Function,
         det_HH_t   = det(HH_t)
 
         # Initialize s_t_nontemp and ϵ_t for this period
-        @mypar parallel for i in 1:n_particles
+        @sync @distributed for i in 1:n_particles
+        #@mypar parallel for i in 1:n_particles
             ϵ_t[:, i] = rand(F_ϵ)
             s_t_nontemp[:, i] = Φ(s_t1_temp[:, i], ϵ_t[:, i])
         end
@@ -193,13 +191,11 @@ function tempered_particle_filter(data::Matrix{S}, Φ::Function, Ψ::Function,
             φ_old = φ_new
         end # of loop over stages
 
+        times[t] = time_ns() - begin_time
         if VERBOSITY[verbose] >= VERBOSITY[:low]
             print("\n")
             @show loglh[t]
-            print("Completion of one period ")
-            times[t] = toc()
-        else
-            times[t] = toq()
+            print("Completion of one period $times[t]")
         end
         s_t1_temp .= s_t_nontemp
     end # of loop over periods

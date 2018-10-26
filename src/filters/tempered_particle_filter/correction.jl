@@ -23,8 +23,10 @@ function weight_kernel!(coeff_terms::V, log_e_1_terms::V, log_e_2_terms::V,
     n_particles = length(coeff_terms)
     n_obs = length(y_t)
 
-    @mypar parallel for i in 1:n_particles
-        error    = y_t - Ψ(s_t_nontemp[:, i])
+    #NOTE
+    #@mypar parallel for i = 1:n_particles
+    @sync @distributed for i in 1:n_particles
+       error    = y_t - Ψ(s_t_nontemp[:, i])
         sq_error = dot(error, inv_HH * error)
 
         if initialize
@@ -58,8 +60,8 @@ function next_φ(φ_old::Float64, coeff_terms::V, log_e_1_terms::V, log_e_2_term
 
     if isempty(fixed_sched)
         n_particles  = length(coeff_terms)
-        inc_weights  = Vector{Float64}(n_particles)
-        norm_weights = Vector{Float64}(n_particles)
+        inc_weights  = Vector{Float64}(undef, n_particles)
+        norm_weights = Vector{Float64}(undef, n_particles)
         ineff0(φ) =
             ineff!(inc_weights, norm_weights, φ, coeff_terms, log_e_1_terms, log_e_2_terms, n_obs) - r_star
 
